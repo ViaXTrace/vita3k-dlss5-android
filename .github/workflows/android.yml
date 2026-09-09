@@ -2,7 +2,11 @@ name: Android build
 
 # This workflow intentionally produces a debug APK so public builds do not
 # depend on private signing secrets.
-on: [push]
+on:
+  push:
+    branches:
+      - android
+  workflow_dispatch:
 
 jobs:
   build:
