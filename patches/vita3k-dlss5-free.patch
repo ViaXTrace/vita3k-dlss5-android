@@ -1,0 +1,195 @@
+diff --git a/.ci/build-android.sh b/.ci/build-android.sh
+index 5f5598a..67dc895 100644
+--- a/.ci/build-android.sh
++++ b/.ci/build-android.sh
+@@ -12,6 +12,15 @@ rm -rf android/app/assets/data android/app/assets/shaders-builtin
+ cp -r data android/app/assets/data
+ cp -r vita3k/shaders-builtin android/app/assets/shaders-builtin
+ 
++# Compile the free Android post-processing shader on the runner so the source
++# remains reviewable and no proprietary SDK or prebuilt binary is required.
++glslangValidator -V \
++    -S frag \
++    -o vita3k/shaders-builtin/vulkan/render_main_dlss5_free.frag.spv \
++    vita3k/shaders-builtin/vulkan/render_main_dlss5_free.frag
++cp vita3k/shaders-builtin/vulkan/render_main_dlss5_free.frag.spv \
++    android/app/assets/shaders-builtin/vulkan/render_main_dlss5_free.frag.spv
++
+ chmod +x android/gradlew
+ 
+ if [[ -e "${SIGNING_STORE_PATH:-}" ]]; then
+diff --git a/.ci/setup-android.sh b/.ci/setup-android.sh
+index debb954..57a867f 100644
+--- a/.ci/setup-android.sh
++++ b/.ci/setup-android.sh
+@@ -6,7 +6,7 @@ android_build_tools="${ANDROID_BUILD_TOOLS:-36.0.0}"
+ android_ndk_version="${ANDROID_NDK_VERSION:-29.0.14206865}"
+ 
+ sudo apt-get update
+-sudo apt-get install -y ninja-build
++sudo apt-get install -y ninja-build glslang-tools
+ 
+ repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+ 
+diff --git a/android/app/src/main/java/org/vita3k/emulator/ui/screens/settings/SettingsSections.kt b/android/app/src/main/java/org/vita3k/emulator/ui/screens/settings/SettingsSections.kt
+index bbb2f07..535bd7b 100644
+--- a/android/app/src/main/java/org/vita3k/emulator/ui/screens/settings/SettingsSections.kt
++++ b/android/app/src/main/java/org/vita3k/emulator/ui/screens/settings/SettingsSections.kt
+@@ -477,7 +477,7 @@ private fun GpuSettingsSection(
+             val screenFilterTitle = stringResource(R.string.settings_gpu_screen_filter)
+             val screenFilterHelp = helpEntry(screenFilterTitle, stringResource(R.string.settings_gpu_screen_filter_desc))
+             val filterOptions = if (isVulkan) {
+-                listOf("Nearest", "Bilinear", "Bicubic", "FXAA", "FSR")
++                listOf("Nearest", "Bilinear", "Bicubic", "FXAA", "FSR", "DLSS5 Free")
+             } else {
+                 listOf("Bilinear", "FXAA")
+             }
+diff --git a/vita3k/gui-qt/src/main_window.cpp b/vita3k/gui-qt/src/main_window.cpp
+index 43aa6d7..af4a96a 100644
+--- a/vita3k/gui-qt/src/main_window.cpp
++++ b/vita3k/gui-qt/src/main_window.cpp
+@@ -2023,7 +2023,8 @@ void MainWindow::update_screen_filter_button() {
+     auto &cc = emuenv.cfg.current_config;
+     const QStringList valid = (cc.backend_renderer == "Vulkan")
+         ? QStringList{ QStringLiteral("Nearest"), QStringLiteral("Bilinear"),
+-              QStringLiteral("Bicubic"), QStringLiteral("FXAA"), QStringLiteral("FSR") }
++              QStringLiteral("Bicubic"), QStringLiteral("FXAA"), QStringLiteral("FSR"),
++              QStringLiteral("DLSS5 Free") }
+         : QStringList{ QStringLiteral("Bilinear"), QStringLiteral("FXAA") };
+ 
+     const QString current = QString::fromStdString(cc.screen_filter);
+diff --git a/vita3k/gui-qt/src/settings_dialog.cpp b/vita3k/gui-qt/src/settings_dialog.cpp
+index eeef2da..c53bf60 100644
+--- a/vita3k/gui-qt/src/settings_dialog.cpp
++++ b/vita3k/gui-qt/src/settings_dialog.cpp
+@@ -1481,7 +1481,8 @@ void SettingsDialog::update_gpu_visibility() {
+         m_ui->screen_filter_box->clear();
+         if (is_vulkan) {
+             m_ui->screen_filter_box->addItems({ QStringLiteral("Nearest"), QStringLiteral("Bilinear"),
+-                QStringLiteral("Bicubic"), QStringLiteral("FXAA"), QStringLiteral("FSR") });
++                QStringLiteral("Bicubic"), QStringLiteral("FXAA"), QStringLiteral("FSR"),
++                QStringLiteral("DLSS5 Free") });
+         } else {
+             m_ui->screen_filter_box->addItems({ QStringLiteral("Bilinear"), QStringLiteral("FXAA") });
+         }
+diff --git a/vita3k/renderer/include/renderer/vulkan/screen_filters.h b/vita3k/renderer/include/renderer/vulkan/screen_filters.h
+index e005a24..eb8f24e 100644
+--- a/vita3k/renderer/include/renderer/vulkan/screen_filters.h
++++ b/vita3k/renderer/include/renderer/vulkan/screen_filters.h
+@@ -132,6 +132,20 @@ public:
+     }
+ };
+ 
++class DLSS5FreeScreenFilter : public SinglePassScreenFilter {
++protected:
++    std::string_view get_fragment_name() override;
++    vk::Sampler create_sampler() override;
++
++public:
++    DLSS5FreeScreenFilter(ScreenRenderer &screen)
++        : SinglePassScreenFilter(screen) {}
++
++    std::string_view get_name() override {
++        return "DLSS5 Free";
++    }
++};
++
+ class FSRScreenFilter : public ScreenFilter {
+ private:
+     // dst of the easu shader, src of the rcas shader
+diff --git a/vita3k/renderer/src/vulkan/screen_filters.cpp b/vita3k/renderer/src/vulkan/screen_filters.cpp
+index 192dba9..6d68706 100644
+--- a/vita3k/renderer/src/vulkan/screen_filters.cpp
++++ b/vita3k/renderer/src/vulkan/screen_filters.cpp
+@@ -367,6 +367,21 @@ vk::Sampler FXAAScreenFilter::create_sampler() {
+     return screen.state.device.createSampler(sampler_info);
+ }
+ 
++std::string_view DLSS5FreeScreenFilter::get_fragment_name() {
++    return "render_main_dlss5_free.frag.spv";
++}
++
++vk::Sampler DLSS5FreeScreenFilter::create_sampler() {
++    vk::SamplerCreateInfo sampler_info{
++        .magFilter = vk::Filter::eLinear,
++        .minFilter = vk::Filter::eLinear,
++        .addressModeU = vk::SamplerAddressMode::eClampToEdge,
++        .addressModeV = vk::SamplerAddressMode::eClampToEdge,
++        .addressModeW = vk::SamplerAddressMode::eClampToEdge,
++    };
++    return screen.state.device.createSampler(sampler_info);
++}
++
+ struct EasuConstant {
+     Viewport viewport;
+     vk::Extent2D output_size;
+diff --git a/vita3k/renderer/src/vulkan/screen_renderer.cpp b/vita3k/renderer/src/vulkan/screen_renderer.cpp
+index 5cb0277..ca6333f 100644
+--- a/vita3k/renderer/src/vulkan/screen_renderer.cpp
++++ b/vita3k/renderer/src/vulkan/screen_renderer.cpp
+@@ -584,6 +584,8 @@ void ScreenRenderer::set_filter(const std::string_view &filter) {
+         this->filter = std::make_unique<FSRScreenFilter>(*this);
++    else if (filter == "DLSS5 Free")
++        this->filter = std::make_unique<DLSS5FreeScreenFilter>(*this);
+     else if (filter == "FXAA")
+         this->filter = std::make_unique<FXAAScreenFilter>(*this);
+     else if (filter == "Bicubic")
+diff --git a/vita3k/shaders-builtin/vulkan/render_main_dlss5_free.frag b/vita3k/shaders-builtin/vulkan/render_main_dlss5_free.frag
+new file mode 100644
+index 0000000..7268106
+--- /dev/null
++++ b/vita3k/shaders-builtin/vulkan/render_main_dlss5_free.frag
+@@ -0,0 +1,53 @@
++// Vita3K emulator project
++// Free post-processing approximation inspired by the visual goals of DLSS 5.
++//
++// This is not NVIDIA DLSS, does not use NVIDIA code or models, and is designed
++// to run on Android Vulkan devices without a paid SDK or network service.
++
++#version 450
++
++layout(location = 0) in vec2 uv_frag;
++layout(binding = 0) uniform sampler2D fb;
++
++layout(location = 0) out vec3 color_frag;
++
++layout(push_constant) uniform constants {
++    vec2 inv_frame_size;
++} pc;
++
++float luma(vec3 color) {
++    return dot(color, vec3(0.2126, 0.7152, 0.0722));
++}
++
++void main() {
++    vec2 texel = pc.inv_frame_size;
++    vec3 center = texture(fb, uv_frag).rgb;
++
++    vec3 north = texture(fb, uv_frag + vec2(0.0, -texel.y)).rgb;
++    vec3 south = texture(fb, uv_frag + vec2(0.0, texel.y)).rgb;
++    vec3 east = texture(fb, uv_frag + vec2(texel.x, 0.0)).rgb;
++    vec3 west = texture(fb, uv_frag + vec2(-texel.x, 0.0)).rgb;
++    vec3 diagonal = (
++        texture(fb, uv_frag + vec2(-texel.x, -texel.y)).rgb +
++        texture(fb, uv_frag + vec2(texel.x, -texel.y)).rgb +
++        texture(fb, uv_frag + vec2(-texel.x, texel.y)).rgb +
++        texture(fb, uv_frag + vec2(texel.x, texel.y)).rgb
++    ) * 0.25;
++
++    vec3 cross_average = (north + south + east + west) * 0.25;
++    vec3 neighborhood = (cross_average * 0.7) + (diagonal * 0.3);
++    vec3 detail = center - neighborhood;
++
++    float center_luma = luma(center);
++    float neighborhood_luma = luma(neighborhood);
++    float edge_strength = clamp(abs(center_luma - neighborhood_luma) * 4.0, 0.0, 1.0);
++
++    // Keep the pass stable on UI/text edges while adding local detail.
++    vec3 sharpened = center + detail * mix(0.24, 0.08, edge_strength);
++    float local_contrast = clamp((center_luma - neighborhood_luma) * 0.16, -0.08, 0.08);
++    vec3 graded = sharpened + local_contrast;
++
++    // Gentle highlight rolloff keeps the post-process from clipping bright UI.
++    graded = graded / (1.0 + max(graded, vec3(0.0)) * 0.045);
++    color_frag = clamp(graded, 0.0, 1.0);
++}
