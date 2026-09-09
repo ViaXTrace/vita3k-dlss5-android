@@ -12,8 +12,8 @@ android {
 		applicationId "org.vita3k.emulator"
 		minSdk 24
 		targetSdk 34
-		versionCode 12
-		versionName "0.2.0-12"
+        versionCode 13
+        versionName "0.2.0-13-nss.1"
 
 		externalNativeBuild {
 			cmake {

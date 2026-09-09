@@ -366,6 +366,21 @@ vk::Sampler FXAAScreenFilter::create_sampler() {
     return screen.state.device.createSampler(sampler_info);
 }
 
+std::string_view NSScreenFilter::get_fragment_name() {
+    return "render_main_nss.frag.spv";
+}
+
+vk::Sampler NSScreenFilter::create_sampler() {
+    vk::SamplerCreateInfo sampler_info{
+        .magFilter = vk::Filter::eLinear,
+        .minFilter = vk::Filter::eLinear,
+        .addressModeU = vk::SamplerAddressMode::eClampToEdge,
+        .addressModeV = vk::SamplerAddressMode::eClampToEdge,
+        .addressModeW = vk::SamplerAddressMode::eClampToEdge,
+    };
+    return screen.state.device.createSampler(sampler_info);
+}
+
 struct EasuConstant {
     Viewport viewport;
     vk::Extent2D output_size;

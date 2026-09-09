@@ -737,12 +737,13 @@ void draw_settings_dialog(GuiState &gui, EmuEnvState &emuenv) {
         // Screen Filter
         ImGui::Spacing();
         int curr_filter = 0;
-        const std::array<const char *, 5> possible_filters = {
+        const std::array<const char *, 6> possible_filters = {
             lang.gpu["nearest"].c_str(),
             lang.gpu["bilinear"].c_str(),
             lang.gpu["bicubic"].c_str(),
             "FXAA",
-            "FSR"
+            "FSR",
+            "NSS (Experimental)"
         };
         const int filters_available = emuenv.renderer->get_supported_filters();
         std::vector<const char *> filters;

@@ -130,6 +130,22 @@ public:
     }
 };
 
+class NSScreenFilter : public SinglePassScreenFilter {
+protected:
+    // NSS is a no-cost, shader-only reconstruction pass. It deliberately does
+    // not bundle or emulate NVIDIA's proprietary DLSS model.
+    std::string_view get_fragment_name() override;
+    vk::Sampler create_sampler() override;
+
+public:
+    NSScreenFilter(ScreenRenderer &screen)
+        : SinglePassScreenFilter(screen) {}
+
+    std::string_view get_name() override {
+        return "NSS (Experimental)";
+    }
+};
+
 class FSRScreenFilter : public ScreenFilter {
 private:
     // dst of the easu shader, src of the rcas shader

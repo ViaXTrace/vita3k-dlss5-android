@@ -8,6 +8,19 @@
 
 Vita3K is an experimental PlayStation Vita emulator for Windows, Linux, macOS and Android.
 
+## Android NSS research fork
+
+This repository is an independent research fork based on the Android Vita3K
+source. It adds `NSS (Experimental)`, a no-cost Vulkan shader pass for
+edge-aware screen reconstruction and restrained sharpening. NSS is an original
+approximation for Android; it is **not NVIDIA DLSS**, does not bundle NVIDIA
+code or models, and is not endorsed by NVIDIA.
+
+The research scope, compatibility decisions, and planned milestones are
+documented in [`docs/dlss5-android-spec.md`](./docs/dlss5-android-spec.md).
+The tagged release workflow produces a debug APK without requiring signing
+secrets, while preserving the upstream renderer fallbacks.
+
 * [Website](https://vita3k.org/) (information for users)
 * [Wiki](https://github.com/Vita3K/Vita3K/wiki) (information for developers)
 * [Discord server](https://discord.gg/MaWhJVH) (recommended)
