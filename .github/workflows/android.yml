@@ -14,6 +14,7 @@ jobs:
     env:
       JVM_OPTS: -Xmx6G
       VCPKG_ROOT: /usr/local/share/vcpkg
+      VCPKG_OVERLAY_TRIPLETS: ${{ github.workspace }}/cmake/vcpkg-triplets
 
     steps:
       - uses: actions/checkout@v4
@@ -30,9 +31,9 @@ jobs:
             ~/.gradle/
             ${{ env.VCPKG_ROOT }}/installed
             ${{ env.VCPKG_ROOT }}/packages
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}-${{ hashFiles('android/**/*.xml') }}-${{ hashFiles('android/**.java') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}-${{ hashFiles('android/**/*.xml') }}-${{ hashFiles('android/**.java') }}-${{ hashFiles('cmake/vcpkg-triplets/arm64-android.cmake') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}-${{ hashFiles('android/**/*.xml') }}-
+            ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}-${{ hashFiles('android/**/*.xml') }}-${{ hashFiles('cmake/vcpkg-triplets/arm64-android.cmake') }}-
             ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}-
             ${{ runner.os }}-gradle-
 

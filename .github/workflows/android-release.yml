@@ -15,6 +15,7 @@ jobs:
     env:
       JVM_OPTS: -Xmx6G
       VCPKG_ROOT: /usr/local/share/vcpkg
+      VCPKG_OVERLAY_TRIPLETS: ${{ github.workspace }}/cmake/vcpkg-triplets
 
     steps:
       - name: Checkout
@@ -36,7 +37,7 @@ jobs:
             ~/.ccache
             ${{ env.VCPKG_ROOT }}/installed
             ${{ env.VCPKG_ROOT }}/packages
-          key: ${{ runner.os }}-vita3k-android-${{ hashFiles('**/build.gradle', 'vcpkg.json', '.gitmodules') }}
+          key: ${{ runner.os }}-vita3k-android-${{ hashFiles('**/build.gradle', 'vcpkg.json', '.gitmodules', 'cmake/vcpkg-triplets/arm64-android.cmake') }}
 
       - name: Install build tools
         run: |
